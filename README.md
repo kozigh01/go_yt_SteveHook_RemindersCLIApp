@@ -36,3 +36,13 @@ github: [my repo](https://github.com/kozigh01/go_yt_SteveHook_RemindersCLIApp)
     $ go build
     $ ./flag-value -id 11 --id 22 -id=33 --id=44
     ```
+
+## client
+
+* Sample command lines (executed from root of project):
+    ```
+    $ make client
+    $ ./bin/client
+    $ ./bin/client --help
+    
+    ```
