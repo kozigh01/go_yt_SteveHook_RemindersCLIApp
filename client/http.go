@@ -18,15 +18,15 @@ func NewHTTPClient(uri string) HTTPClient {
 }
 
 func (c HTTPClient) create(title, message string, duration time.Duration) ([]byte, error) {
-	return []byte("something created"), nil
+	return []byte("something created\n"), nil
 }
 
 func (c HTTPClient) edit(id, title, message string, duration time.Duration) ([]byte, error) {
-	return []byte("something edited"), nil
+	return []byte("something edited\n"), nil
 }
 
 func (c HTTPClient) fetch(ids []string) ([]byte, error) {
-	return []byte("something fetched"), nil
+	return []byte("something fetched\n"), nil
 }
 
 func (c HTTPClient) delete(ids []string) error {

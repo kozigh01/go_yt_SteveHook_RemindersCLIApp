@@ -4,8 +4,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
+
+type idsFlag []string
+
+func (list idsFlag) String() string {
+	return strings.Join(list, ",")
+}
+
+func (list *idsFlag) Set(v string) error {
+	*list = append(*list, v)
+	return nil
+}
 
 type CmdFunc func(string) error
 type CmdFuncFactory func() CmdFunc
@@ -60,7 +72,7 @@ func (s Switch) Help() {
 
 func (s Switch) create() CmdFunc {
 	return func(cmd string) error {
-		createCmd := flag.NewFlagSet(cmd, flag.ExitOnError)
+		createCmd := flag.NewFlagSet(cmd, flag.ContinueOnError)
 		t, m, d := s.reminderFlags(createCmd)
 
 		if err := s.checkArgs(3); err != nil {
@@ -82,29 +94,96 @@ func (s Switch) create() CmdFunc {
 }
 
 func (s Switch) edit() CmdFunc {
-	return func(string) error {
-		fmt.Println("edit reminder")
+	return func(cmd string) error {
+		editCmd := flag.NewFlagSet(cmd, flag.ContinueOnError)
+		ids := idsFlag{}
+		editCmd.Var(&ids, "id", "The ID (int) of the reminder to edit")
+		t, m, d := s.reminderFlags(editCmd)
+
+		if err := s.checkArgs(2); err != nil {
+			return err
+		}
+
+		if err := s.parseCmd(editCmd); err != nil {
+			return err
+		}
+
+		lastID := ids[len(ids)-1]
+		res, err := s.client.edit(lastID, *t, *m, *d)
+		if err != nil {
+			return wrapError("could not edit reminder", err)
+		}
+
+		fmt.Printf("reminder edited successfully:\n%s", string(res))
 		return nil
 	}
 }
 
 func (s Switch) fetch() CmdFunc {
-	return func(string) error {
-		fmt.Println("fetch reminder")
+	return func(cmd string) error {
+		fetchCmd := flag.NewFlagSet(cmd, flag.ContinueOnError)
+		ids := idsFlag{}
+		fetchCmd.Var(&ids, "id", "The ID (int) of the reminder to edit")
+
+		if err := s.checkArgs(1); err != nil {
+			return err
+		}
+
+		if err := s.parseCmd(fetchCmd); err != nil {
+			return err
+		}
+
+		res, err := s.client.fetch(ids)
+		if err != nil {
+			return wrapError("could not fetch reminder", err)
+		}
+
+		fmt.Printf("reminders fetched successfully:\n%s", string(res))
 		return nil
 	}
 }
 
 func (s Switch) delete() CmdFunc {
-	return func(string) error {
-		fmt.Println("delete reminder")
+	return func(cmd string) error {
+		deleteCmd := flag.NewFlagSet(cmd, flag.ContinueOnError)
+		ids := idsFlag{}
+		deleteCmd.Var(&ids, "id", "The ID (int) of the reminder to edit")
+
+		if err := s.checkArgs(1); err != nil {
+			return err
+		}
+
+		if err := s.parseCmd(deleteCmd); err != nil {
+			return err
+		}
+
+		err := s.client.delete(ids)
+		if err != nil {
+			return wrapError("could not delete reminder", err)
+		}
+
+		fmt.Printf("reminders deleted successfully:\n")
 		return nil
 	}
 }
 
 func (s Switch) health() CmdFunc {
-	return func(string) error {
-		fmt.Println("health reminder")
+	return func(cmd string) error {
+		var host string
+		healthCmd := flag.NewFlagSet(cmd, flag.ContinueOnError)
+		healthCmd.StringVar(&host, "host", "", "the host to check")
+		
+		if err := s.checkArgs(1); err != nil {
+			return err
+		}
+
+		if err := s.parseCmd(healthCmd); err != nil {
+			return err
+		}
+
+		var isHealthy = s.client.healthy(host)
+
+		fmt.Printf("Health status: %v", isHealthy)
 		return nil
 	}
 }
@@ -115,8 +194,8 @@ func (s Switch) reminderFlags(f *flag.FlagSet) (*string, *string, *time.Duration
 	f.StringVar(&t, "t", "", "Reminder title")
 	f.StringVar(&m, "message", "", "Reminder message")
 	f.StringVar(&m, "m", "", "Reminder message")
-	f.DurationVar(&d, "duration", time.Duration(0), "Reminder time")
-	f.DurationVar(&d, "d", time.Duration(0), "Reminder time")
+	f.DurationVar(&d, "duration", time.Duration(0), "Reminder time (https://pkg.go.dev/time#ParseDuration)")
+	f.DurationVar(&d, "d", time.Duration(0), "Reminder time (https://pkg.go.dev/time#ParseDuration)")
 	return &t, &m, &d
 }
 
@@ -129,16 +208,12 @@ func (s Switch) parseCmd(cmd *flag.FlagSet) error {
 }
 
 func (s Switch) checkArgs(minArgs int) error {
-	if len(os.Args) == 3 && os.Args[2] == "--help" {
+	if len(os.Args) == 3 && (os.Args[2] == "--help" || os.Args[2] == "-h") {
 		return nil
 	}
 	if len(os.Args)-2 < minArgs {
-		fmt.Printf(
-			"incorrect use of %s\n%s %s",
-			os.Args[1], os.Args[0], os.Args[1])
-		return fmt.Errorf(
-			"%s expects at least %d arg(s), %d provided",
-			os.Args[1], minArgs, len(os.Args)-2)
+		fmt.Printf("incorrect use of %s\n%s %s", os.Args[1], os.Args[0], os.Args[1])
+		return fmt.Errorf("%s expects at least %d arg(s), %d provided",	os.Args[1], minArgs, len(os.Args)-2)
 	}
 	return nil
 }
